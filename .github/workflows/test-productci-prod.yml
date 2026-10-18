@@ -1,0 +1,49 @@
+name: Product API CRUD CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-crud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Create CI environment file
+        run: |
+          cat > .env <<'EOF'
+          PORT=3000
+          MONGODB_URI=mongodb://mongodb:27017/productdb
+          EOF
+
+      - name: Build and wait for healthy services
+        run: docker compose up -d --build --wait --wait-timeout 120
+
+      - name: Check container status
+        run: docker compose ps
+
+      - name: Test Product CRUD
+        run: node scripts/test-crud.js
+
+      - name: Show container logs
+        if: always()
+        run: docker compose logs --no-color
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down -v

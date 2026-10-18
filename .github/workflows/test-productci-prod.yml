@@ -64,3 +64,48 @@ jobs:
       - name: Stop containers
         if: always()
         run: docker compose down -v
+
+  deploy-local:
+    needs: test-crud
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, Windows, X64, product-api-local]
+    timeout-minutes: 10
+
+    concurrency:
+      group: product-api-local-deploy
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        shell: powershell
+
+    env:
+      DOCKER_CONTEXT: desktop-linux
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Create local deployment environment
+        run: |
+          Set-Content -Path .env -Encoding ascii -Value @(
+            "PORT=3000"
+            "MONGODB_URI=mongodb://mongodb:27017/productdb"
+          )
+
+      - name: Pull tested image from Docker Hub
+        run: docker compose -p product-api -f docker-compose-prod.yaml pull product-api
+
+      - name: Deploy and wait for healthy services
+        run: docker compose -p product-api -f docker-compose-prod.yaml up -d --wait --wait-timeout 120
+
+      - name: Check deployed containers
+        run: docker compose -p product-api -f docker-compose-prod.yaml ps
+
+      - name: Test deployed Product API
+        run: node scripts/test-crud.js
+
+      - name: Show deployment logs
+        if: always()
+        run: docker compose -p product-api -f docker-compose-prod.yaml logs --no-color

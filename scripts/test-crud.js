@@ -47,6 +47,10 @@ async function test() {
     }
     console.log('PASS: Create product');
 
+    //tao them trung ma
+    await request('POST','/api/products',409,product);
+    console.log('PASS: Reject duplicate product pid');
+
     const found = await request('GET', path, 200);
     for (const key of Object.keys(product)) {
       assert.equal(found[key], product[key]);
